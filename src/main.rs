@@ -1,4 +1,8 @@
-use std::{io::Write, iter::Once, error::Error};
+mod token;
+mod tokenizer;
+
+use std::{io::Write, error::Error};
+use tokenizer::Tokenizer;
 
 type AnyResult = Result<(), Box<dyn Error>>;
 fn main() -> AnyResult
@@ -41,7 +45,7 @@ fn run_prompt()
     while input.read_line(&mut line).is_ok()
     { 
         run(&line).unwrap_or_else(|err|
-            eprintln!("Error on input '{line}': {err}")
+            eprintln!("Error on input: {err}")
         );
         line.clear();
         print_prompt();
@@ -57,35 +61,10 @@ fn run(source: &str) -> AnyResult
 {
     for tok in Tokenizer::new(source)
     {
-        println!("{:?}", tok?);
+        println!("{:?}", tok);
     }
     Ok(())
 }
 
 fn error(line: u32, message: String) -> String { report(line, "".to_string(), message) }
 fn report(line: u32, loc: String, message: String) -> String { format!("[line {line}] Error {loc}: {message}") }
-
-type Token = String;
-type TokResult = Result<Token, String>;
-struct Tokenizer<'a>
-{
-    source: &'a str,
-}
-impl<'a> Tokenizer<'a>
-{
-    fn new(source: &'a str) -> Self { Self {source} }
-}
-impl<'a> IntoIterator for Tokenizer<'a>
-{
-    type Item = TokResult;
-    type IntoIter = Once<TokResult>;
-    fn into_iter(self) -> Self::IntoIter { std::iter::once(Ok(self.source.to_string())) }
-}
-// impl<'a> Iterator for Tokenizer<'a>
-// {
-//     type Item = &'a str;
-//     fn next(&mut self) -> Option<Self::Item> 
-//     {
-//         Some(self.source)
-//     }
-// }
