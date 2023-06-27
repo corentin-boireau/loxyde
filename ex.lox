@@ -1,6 +1,11 @@
-// this is a comment
-(( )){} // grouping stuff
-!*+-/=<> <= == // operators
-" kljalkjak
-kljklj"
-23 323.03
+var a = "lama"
+if a == "lama"
+{
+    var b = 3.34 + 2
+    print b
+}
+else 
+{
+    print "2 >= 4"
+    print 2 >= 4
+}

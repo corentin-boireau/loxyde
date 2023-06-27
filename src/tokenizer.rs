@@ -1,4 +1,4 @@
-use std::str::Chars;
+use std::{str::Chars, collections::HashMap};
 
 use crate::token::{Token, SourceLocation};
 
@@ -19,7 +19,7 @@ impl<'a> Tokenizer<'a>
     {
         self.skip_whitespaces();
         let offset = self.compute_offset();
-        if let Some(c) = self.chars.next()
+        if let Some(c) = self.consume()
         {
             let mut len = 1;
 
@@ -54,8 +54,8 @@ impl<'a> Tokenizer<'a>
                 '"' =>
                 {
                     self.consume_while(|c| c != '"');
-                    if self.chars.next() != Some('"') 
-                    { // self.chars.next() was None denoting the end of the source
+                    if self.consume() != Some('"') 
+                    { // self.consume() was None denoting the end of the source
                         return (Err(format!("Unterminated string")), SourceLocation {offset, len: self.compute_offset() - offset}); 
                     }
 
@@ -70,7 +70,7 @@ impl<'a> Tokenizer<'a>
                     if matches!(self.peek_first_two(), 
                         (Some('.'), Some(c)) if Self::is_digit(c))
                     {
-                        self.chars.next(); // Consume '.'
+                        self.consume(); // Consume '.'
                         self.consume_while(Self::is_digit);
                     }
 
@@ -84,6 +84,16 @@ impl<'a> Tokenizer<'a>
                     }
                 },
 
+                c if Self::is_alpha(c) =>
+                {
+                    self.consume_while(Self::is_alphanum);
+
+                    let offset_end = self.compute_offset();
+                    len = offset_end - offset;
+
+                    Self::ident_or_keyword_from_str(&self.source[(offset)..(offset_end)])
+                },
+
                 _ => return (Err(format!("Unexpected character: {c:?}")), SourceLocation {offset, len}),
             };
             (Ok(tok), SourceLocation {offset, len})
@@ -93,24 +103,55 @@ impl<'a> Tokenizer<'a>
 
     fn peek_first(&self) -> Option<char> { self.chars.clone().next() }
     fn peek_first_two(&self) -> (Option<char>, Option<char>) { let mut peek = self.chars.clone(); (peek.next(), peek.next()) }
+    fn consume(&mut self) -> Option<char> { self.chars.next() }
     fn consume_while(&mut self, mut predicate: impl FnMut(char) -> bool)
     {
         while self.peek_first().map_or(false, |c| predicate(c))
         {
-            self.chars.next();
+            self.consume();
         }
     }
     fn skip_whitespaces(&mut self) { self.consume_while(char::is_whitespace) }
     fn consume_if(&mut self, predicate: impl FnOnce(char) -> bool) -> bool
     {
         let consumed = self.peek_first().map_or(false, |c| predicate(c));
-        if consumed { self.chars.next(); }
+        if consumed { self.consume(); }
         consumed
     }
     fn consume_on(&mut self, expected: char) -> bool { self.consume_if(|c| c == expected) }
     fn compute_offset(&self) -> usize { self.source.len() - self.chars.as_str().len() }
 
     fn is_digit(c: char) -> bool { c.is_ascii_digit() }
+    fn is_alpha(c: char) -> bool { c == '_' || c.is_alphabetic() }
+    fn is_alphanum(c: char) -> bool { Self::is_alpha(c) || Self::is_digit(c) }
+
+    fn ident_or_keyword_from_str(name: &str) -> Token
+    { 
+        // O(n) implementation. Could be speeded up by using a static map but that would require static initialization of non-const value which in turn requires unsafe code.
+        // There are some crates that provide safe wrappers but in order to keep this project not using external dependency, I currently let it be like that.
+        use Token::*;
+        match name
+        {
+            "and"    => And,
+            "class"  => Class,
+            "else"   => Else,
+            "false"  => False,
+            "fun"    => Fun,
+            "for"    => For,
+            "if"     => If,
+            "nil"    => Nil,
+            "or"     => Or,
+            "print"  => Print,
+            "return" => Return,
+            "super"  => Super,
+            "this"   => This,
+            "true"   => True,
+            "var"    => Var,
+            "while"  => While,
+
+            _ => Identifier(name.to_string())
+        }
+    }
 }
 
 impl<'a> Iterator for Tokenizer<'a>
