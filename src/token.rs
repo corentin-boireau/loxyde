@@ -35,10 +35,3 @@ pub enum Token
 
     Eof
 }
-
-#[derive(Debug)]
-pub struct SourceLocation
-{
-    pub offset : usize,
-    pub len    : usize,
-}

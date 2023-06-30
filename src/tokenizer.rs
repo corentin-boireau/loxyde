@@ -1,8 +1,17 @@
-use std::{str::Chars, collections::HashMap};
+use std::str::Chars;
 
-use crate::token::{Token, SourceLocation};
+use crate::token::Token;
+use crate::sloc::SourceLocation;
 
-type TokResult = (Result<Token, String>, SourceLocation);
+pub type TokResult = (Result<Token, TokError>, SourceLocation);
+
+#[derive(Debug, Clone)]
+pub enum TokError
+{
+    NumberParse(String),
+    UnterminatedString,
+    UnexpectedCharacter(char),
+}
 pub struct Tokenizer<'a>
 {
     source : &'a str,
@@ -56,7 +65,7 @@ impl<'a> Tokenizer<'a>
                     self.consume_while(|c| c != '"');
                     if self.consume() != Some('"') 
                     { // self.consume() was None denoting the end of the source
-                        return (Err(format!("Unterminated string")), SourceLocation {offset, len: self.compute_offset() - offset}); 
+                        return (Err(TokError::UnterminatedString), SourceLocation {offset, len: self.compute_offset() - offset}); 
                     }
 
                     let offset_end = self.compute_offset();
@@ -76,11 +85,12 @@ impl<'a> Tokenizer<'a>
 
                     let offset_end = self.compute_offset();
                     len = offset_end - offset;
-                    let number_res = self.source[(offset)..(offset_end)].parse::<f64>();
+                    let number_litteral: &str = &self.source[(offset)..(offset_end)];
+                    let number_res = number_litteral.parse::<f64>();
                     match number_res
                     {
                         Ok(x)  => Number(x),
-                        Err(e) => return (Err(format!("Parsing error: {e:?}")), SourceLocation {offset, len}),
+                        Err(_) => return (Err(TokError::NumberParse(number_litteral.to_string())), SourceLocation {offset, len}),
                     }
                 },
 
@@ -94,7 +104,7 @@ impl<'a> Tokenizer<'a>
                     Self::ident_or_keyword_from_str(&self.source[(offset)..(offset_end)])
                 },
 
-                _ => return (Err(format!("Unexpected character: {c:?}")), SourceLocation {offset, len}),
+                _ => return (Err(TokError::UnexpectedCharacter(c)), SourceLocation {offset, len: c.len_utf8()}),
             };
             (Ok(tok), SourceLocation {offset, len})
         }

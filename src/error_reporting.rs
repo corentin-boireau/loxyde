@@ -1,61 +1,76 @@
-const CONTENT: &str = r#"    
-    lol
-    let mut aéé = "lama";
-    sticot
-"#;
+use crate::sloc::SourceLocation;
 
-pub fn main()
+pub fn format_err_message(source: &str, sloc: SourceLocation, source_filepath: Option<&str>, description: &str, help: &str) -> String
 {
-    let mut aéé = "lama";
-    let offset = 25;
-    let len = 5;
-    print_underlined(CONTENT, offset, len);
+    let SourceLocation{offset, len} = sloc;
+    let SubjectInfo{line, col, subject_line_begin, next_line_begin} = SubjectInfo::from_source(source, offset, len);
+
+    let subject_line_end = usize::max(offset + len, next_line_begin - 1);
+
+    let subject        : &str   = &source[offset..(offset + len)];
+    let subject_line   : &str   = &source[subject_line_begin..subject_line_end];
+    let pre_underlined : String = " ".repeat(source[subject_line_begin..offset].chars().count());
+    let underlined     : String = "^".repeat(subject.chars().count());
+
+    let filepath = source_filepath.unwrap_or("<source>");
+
+    format!(
+"{description}
+ --> {filepath}:{line}:{col} 
+  |
+{line} | {subject_line}
+  | {pre_underlined}{underlined} {help}",
+    )
 }
 
-fn print_underlined(source: &str, offset: usize, len: usize)
+struct SubjectInfo
 {
-    assert!(source.len() >= offset + len);
+    line               : usize,
+    col                : usize,
+    subject_line_begin : usize,
+    next_line_begin    : usize,
+}
 
-    let mut line = 1;
-    let mut col = 1;
-    let mut chars = source.chars();
-    let mut pos = 0;
-    let mut last_line_begin = pos;
-    let mut c: char = '\0';
-    while pos < offset
+impl SubjectInfo
+{
+    fn from_source(source: &str, offset: usize, len: usize) -> Self
     {
-        c = chars.next().expect("should be enough characters");
-        pos += c.len_utf8();
-        if c == '\n'
+        assert!(source.len() >= offset + len);
+
+        let mut line = 1;
+        let mut col = 1;
+        let mut chars = source.chars();
+        let mut pos = 0;
+        let mut subject_line_begin = pos;
+        let mut c: char;
+        while pos < offset
         {
-            line += 1;
-            col = 1;
-            last_line_begin = pos;
+            c = chars.next().expect("should be enough characters");
+            pos += c.len_utf8();
+            if c == '\n'
+            {
+                line += 1;
+                col = 1;
+                subject_line_begin = pos;
+            }
+            else
+            {
+                col += 1;
+            }
         }
-        else
+
+        while pos < offset + len
         {
-            col += 1;
+            c = chars.next().expect("should be enough characters");
+            pos += c.len_utf8();
         }
+
+        while match chars.next() {
+            Some('\n') | None => false,
+            Some(c) => { pos += c.len_utf8(); true },
+        } {}
+        let next_line_begin = pos;
+
+        Self { line, col, subject_line_begin, next_line_begin }
     }
-
-    while pos < offset + len || c != '\n'
-    {
-        c = chars.next().expect("should be enough characters");
-        pos += c.len_utf8();
-    }
-    let next_line_begin = pos;
-
-    let identifier     : &str = &source[offset..(offset + len)];
-    let src_line       : &str = &source[last_line_begin..next_line_begin - 1];
-    let pre_underlined : String = " ".repeat(source[last_line_begin..offset].chars().count());
-    let underlined     : String = "^".repeat(identifier.chars().count());
-    let help           : String = format!("help: if this is intentional, prefix it with an underscore: `_{identifier}`");
-
-    println!(
-"warning: unused variable: `{identifier}`
- --> <source>:{line}:{col} 
-  |
-{line} | {src_line}
-  | {pre_underlined}{underlined} {help}",
-    );
 }
